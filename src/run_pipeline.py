@@ -6,10 +6,10 @@ import sys
 STEPS = [
     "src/baseline_forecasting.py",
     "src/sku_level_forecasting.py",
+    "src/forecast_backtesting.py",
     "src/inventory_optimization.py",
     "src/supplier_risk.py",
     "src/temporal_disruption.py",
-    "src/disruption_detection.py",
     "src/create_control_tower.py",
     "src/business_impact.py",
     "src/finance_analysis.py",

@@ -139,12 +139,12 @@ with tabs[5]:
     if temporal.empty:
         st.info("No temporal risk output found.")
     else:
-        selected_supplier = st.selectbox("Supplier", sorted(temporal.supplier.dropna().astype(str).unique()), key="risk_supplier")
-        supplier_temporal = temporal[temporal.supplier.astype(str) == selected_supplier].copy()
-        products = sorted(supplier_temporal.product.dropna().astype(str).unique())
+        selected_supplier = st.selectbox("Supplier", sorted(temporal["supplier"].dropna().astype(str).unique()), key="risk_supplier")
+        supplier_temporal = temporal[temporal["supplier"].astype(str) == selected_supplier].copy()
+        products = sorted(supplier_temporal["product"].dropna().astype(str).unique())
         if products:
             selected_product = st.selectbox("Product", products, key="risk_product")
-            timeline = supplier_temporal[supplier_temporal.product.astype(str) == selected_product].copy()
+            timeline = supplier_temporal[supplier_temporal["product"].astype(str) == selected_product].copy()
             timeline["date"] = pd.to_datetime(timeline["date"])
             st.line_chart(timeline.sort_values("date").set_index("date")[["disruption_signal"]])
             latest = timeline.sort_values("date").iloc[-1]

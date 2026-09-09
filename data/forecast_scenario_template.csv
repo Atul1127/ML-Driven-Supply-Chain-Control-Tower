@@ -1,0 +1,2 @@
+date,store,product,promo_event,discount_pct
+# Add future rows below. promo_event=1 activates a promotion; discount_pct is 0-100.

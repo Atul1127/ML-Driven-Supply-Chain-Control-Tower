@@ -2,37 +2,35 @@
 
 ![Supply Chain Control Tower](images/banner.png)
 
-**SQL Analytics · Financial Analysis · Demand Forecasting · Inventory Optimization · Supplier Risk · Decision Intelligence**
+**SQL Analytics · Demand Forecasting · Inventory Decisions · Supplier Risk · Financial Impact · Decision Support**
 
-An end-to-end supply-chain analytics platform that turns retail sales and supplier operations into **business KPIs, financial insights, forecasts, inventory decisions, risk signals, and prioritized actions**.
+An end-to-end supply-chain analytics platform that turns retail sales and supplier operations into **business KPIs, demand forecasts, replenishment decisions, supplier-risk signals, financial exposure, and prioritized actions**.
 
-> **Portfolio disclosure:** The dataset is synthetic. Financial outputs use explicit planning assumptions, and disruption detection is decision-support analysis rather than calibrated probability or proven real-world ground truth.
+> **Portfolio disclosure:** The dataset is synthetic. Financial outputs use explicit planning assumptions, and risk/disruption signals are decision-support analysis rather than calibrated probabilities or proven real-world ground truth.
 
 ## 🎯 What I Built
-
-This project demonstrates a complete analytics-to-decision workflow relevant to **Data Analyst, Business Analyst, Finance Analyst, and Data Science** roles:
 
 ```text
 Retail & Supplier Data
         ↓
 SQL Business Analysis
         ↓
-Financial KPIs & Variance Analysis
+Demand Forecasting + Walk-Forward Validation
         ↓
-Demand Forecasting
+Forecast-Driven Inventory Decisions
         ↓
-Inventory Optimization
+Supplier Performance + Temporal Risk
         ↓
-Supplier & Disruption Risk
-        ↓
-Business Impact
+Business Impact Simulation
         ↓
 Interactive Streamlit Control Tower
 ```
 
-## 📊 Key Results
+The focus is deliberately on a coherent decision workflow rather than collecting many unrelated ML algorithms.
 
-Results from the current reproducible pipeline run:
+## 📊 Current Results
+
+Results from the reproducible pipeline run:
 
 | Metric | Result |
 |---|---:|
@@ -47,7 +45,7 @@ Results from the current reproducible pipeline run:
 | Current inventory value | **₹29.4 Lakh** |
 | Recommended replenishment | **117,294 units** |
 
-Financial values are derived from the synthetic dataset and documented assumptions; they are **not real company results**.
+Financial values are derived from the synthetic dataset and documented assumptions; they are **not real company results**. Replenishment impact is a planning simulation, not realized savings.
 
 ## 🖥️ Dashboard
 
@@ -60,12 +58,12 @@ The Streamlit dashboard provides an executive view of operational and financial 
 - 🚨 **Control Tower** — prioritized inventory actions and filters
 - 💰 **Financial Analytics** — revenue, COGS, gross margin, budget variance, DIO and holding cost
 - 📈 **Sales & Revenue** — promotion effectiveness and ABC product analysis
-- 📦 **Inventory** — stockouts, inventory value, coverage and replenishment signals
+- 📦 **Inventory** — stockouts, inventory value, coverage, replenishment and policy simulation
 - 🏭 **Supplier Risk** — supplier service performance and financial exposure
-- ⚠️ **Disruption** — anomaly and temporal disruption intelligence
-- 🔮 **Forecast** — 30-day SKU/store demand forecasts
-- 📊 **Model Benchmark** — baseline versus XGBoost performance
-- 🎯 **Recommendations** — prioritized business actions
+- ⚠️ **Risk Signals** — temporal supplier × product deterioration against a rolling baseline
+- 🔮 **Forecast** — 30-day SKU/store demand forecasts with known future promotion inputs
+- 📊 **Model Benchmark** — baseline versus XGBoost plus walk-forward backtesting
+- 🎯 **Recommendations** — prioritized actions and simulated policy benefit
 
 ## 🧩 Core Analytics
 
@@ -88,46 +86,21 @@ Files:
 - `sql/01_business_analysis.sql`
 - `sql/02_finance_analysis.sql`
 
-### 2. Financial Analysis
-
-A dedicated finance layer connects operational performance to commercial metrics:
-
-- Revenue
-- COGS
-- Gross Profit
-- Gross Margin %
-- Budget vs Actual
-- Revenue / COGS / Gross Profit variance
-- Margin variance
-- Inventory Turnover
-- Days Inventory Outstanding (DIO)
-- Annual inventory holding cost
-- Historical lost-sales exposure
-- Promotion effectiveness
-- ABC product classification
-- Supplier-level stockout financial impact
-
-**Cost assumption:** unit cost is modeled as **60% of list price** because procurement cost is not available in the original synthetic dataset.
-
-**Budget assumption:** monthly budget is modeled from prior-month actual performance using explicit growth assumptions; it is not a historical company budget.
-
-### 3. Demand Forecasting
+### 2. Demand Forecasting
 
 - Store × SKU daily demand aggregation
 - Leakage-safe lag and rolling features
-- 1-day naive baseline
-- 7-day seasonal-naive baseline
+- 1-day naive and 7-day seasonal-naive baselines
 - XGBoost forecasting
-- Chronological train/test evaluation
+- Chronological evaluation
+- **Three-window walk-forward backtesting**
 - 30-day recursive forecasting
 - MAE, RMSE and MAPE comparison
 - SHAP feature importance
 
-Current run: XGBoost achieved **5.79 MAE** versus **8.93 MAE** for the seasonal-naive baseline across 150 SKU-store pairs.
+Known future promotion and discount inputs can be supplied through `data/forecast_scenario.csv`. Unspecified future days default to no promotion and zero discount.
 
-### 4. Inventory Optimization
-
-Forecast demand is translated into operational decisions:
+### 3. Inventory Decisions
 
 ```text
 Forecast Demand
@@ -143,9 +116,9 @@ EOQ
 Recommended Replenishment
 ```
 
-The output identifies **CRITICAL, REORDER, and NORMAL** inventory states for prioritized replenishment.
+The output identifies **CRITICAL, REORDER, and NORMAL** inventory states. Service level, ordering cost and holding-rate assumptions are explicit planning parameters.
 
-### 5. Supplier Risk
+### 4. Supplier Risk
 
 Supplier performance combines:
 
@@ -155,36 +128,68 @@ Supplier performance combines:
 - Delays
 - Ordered vs received quantity
 - Fill rate
-- Composite risk scoring
+- Transparent supplier risk scoring
 
-### 6. Disruption Intelligence
+A separate temporal layer compares supplier × product behavior against a preceding **14-day baseline**, producing deterioration signals for prioritization.
 
-Supplier behavior is analyzed using:
+The project intentionally does not claim calibrated disruption probabilities.
 
-- K-Means
-- Hierarchical clustering
-- DBSCAN
-- PCA
-- Isolation Forest
-- Temporal supplier × product monitoring
+### 5. Business Impact Simulation
 
-The temporal layer compares operational behavior against a preceding **14-day baseline**. Disruption scores are intended for prioritization, not probability estimation.
+Recommended replenishment is tested over the 30-day forecast horizon against a no-new-order baseline.
 
-### 7. Business Impact
+The simulation estimates:
 
-Operational signals are translated into business consequences:
+- Baseline projected shortage units
+- Recommended-policy projected shortage units
+- Stockout reduction
+- Avoided lost-sales value
+- Incremental holding cost
+- Estimated net benefit
 
-- Current stockouts
-- Historical stockout days
-- Lost-sales exposure
-- Inventory value
-- Low inventory coverage
-- Recommended replenishment
-- Critical and reorder SKU-store pairs
+These are **synthetic planning estimates**, not realized financial savings.
 
-## 🛠️ Tech Stack
+### 6. Financial Analysis
 
-**Python · Pandas · NumPy · PostgreSQL · SQL · Scikit-learn · XGBoost · SHAP · Streamlit · Matplotlib · Seaborn**
+The finance layer connects operational performance to commercial metrics:
+
+- Revenue
+- COGS
+- Gross Profit
+- Gross Margin %
+- Budget vs Actual
+- Inventory Turnover
+- Days Inventory Outstanding (DIO)
+- Annual inventory holding cost
+- Historical lost-sales exposure
+- Promotion effectiveness
+- ABC product classification
+- Supplier-level stockout financial impact
+
+**Cost assumption:** unit cost is modeled as **60% of list price** because procurement cost is not available in the original synthetic dataset.
+
+**Budget assumption:** monthly budget is modeled from prior-month actual performance using explicit growth assumptions; it is not a historical company budget.
+
+## 🔄 Reproducible Pipeline
+
+```text
+1. baseline_forecasting.py
+2. sku_level_forecasting.py
+3. forecast_backtesting.py
+4. inventory_optimization.py
+5. supplier_risk.py
+6. temporal_disruption.py
+7. create_control_tower.py
+8. business_impact.py
+9. business_impact_simulation.py
+10. finance_analysis.py
+11. shap_explainability.py
+12. validate_outputs.py
+```
+
+The pipeline intentionally removes the previous multi-algorithm clustering/PCA disruption experiment. Supplier risk is now based on transparent KPIs plus temporal deterioration signals, which are more appropriate for the small synthetic supplier population.
+
+Validation checks required artifacts, forecast coverage, original benchmark performance, walk-forward performance, scenario bounds, finance reconciliation, and replenishment simulation outputs.
 
 ## 📁 Repository Structure
 
@@ -194,11 +199,6 @@ Operational signals are translated into business consequences:
 ├── data/
 │   └── retail_sales_data.csv
 ├── images/
-│   ├── banner.png
-│   ├── Interface.png
-│   ├── business/
-│   ├── forecasting/
-│   └── time_series/
 ├── sql/
 │   ├── 01_business_analysis.sql
 │   └── 02_finance_analysis.sql
@@ -207,12 +207,13 @@ Operational signals are translated into business consequences:
 │   ├── load_to_postgres.py
 │   ├── baseline_forecasting.py
 │   ├── sku_level_forecasting.py
+│   ├── forecast_backtesting.py
 │   ├── inventory_optimization.py
 │   ├── supplier_risk.py
-│   ├── disruption_detection.py
 │   ├── temporal_disruption.py
 │   ├── create_control_tower.py
 │   ├── business_impact.py
+│   ├── business_impact_simulation.py
 │   ├── finance_analysis.py
 │   ├── shap_explainability.py
 │   ├── validate_outputs.py
@@ -221,8 +222,6 @@ Operational signals are translated into business consequences:
 ├── requirements.txt
 └── README.md
 ```
-
-Generated pipeline CSVs are ignored by Git; the source retail dataset is retained in `data/`.
 
 ## 🚀 Quick Start
 
@@ -263,45 +262,16 @@ python src/run_pipeline.py
 streamlit run app.py
 ```
 
-The pipeline generates the analytical CSV outputs consumed by the dashboard. PostgreSQL is required for the database-loading/SQL workflow; the dashboard reads the generated CSV outputs.
-
-## 🔄 Reproducible Pipeline
-
-```text
-1. baseline_forecasting.py
-2. sku_level_forecasting.py
-3. inventory_optimization.py
-4. supplier_risk.py
-5. temporal_disruption.py
-6. disruption_detection.py
-7. create_control_tower.py
-8. business_impact.py
-9. finance_analysis.py
-10. shap_explainability.py
-11. validate_outputs.py
-```
-
-The final validation checks required artifacts, forecasting performance, 150-pair coverage, finance KPI consistency, ABC classifications, business-impact values, and disruption score ranges.
-
-## 🗃️ Data
-
-The included dataset is synthetic retail supply-chain data representing:
-
-- **5 stores**
-- **30 products**
-- **8 suppliers**
-- **2023–2024** dates
-- **109,650 daily records**
-
-The data supports pricing, discounts, promotions, demand, sales, revenue, inventory, stockouts, supplier performance and replenishment analysis.
+PostgreSQL is required for the database-loading/SQL workflow; the dashboard reads the generated CSV outputs.
 
 ## ⚠️ Evaluation & Limitations
 
-- Forecasting is evaluated chronologically using MAE, RMSE and MAPE.
-- Disruption detection is unsupervised because there is no verified historical disruption ground truth.
+- Forecasting uses chronological evaluation and three walk-forward windows; the original single holdout is retained for continuity with the headline benchmark.
+- Future promotions/discounts are scenario inputs; unknown future events are not magically predicted.
+- Supplier risk and temporal disruption are prioritization signals, not calibrated disruption probabilities.
+- The dataset is synthetic: 5 stores, 30 products, 8 suppliers and 2023–2024 dates.
 - Unit cost uses the documented **60%-of-list-price** assumption.
 - Budget values are modeled planning assumptions rather than historical company budgets.
-- Inventory formulas are simplified for portfolio demonstration.
-- Historical lost-sales exposure is simulated; it should not be presented as realized savings.
+- Inventory formulas are simplified portfolio-level policies rather than a full constrained optimization solver.
+- Replenishment impact is a deterministic planning simulation and should not be presented as realized savings.
 - The project does not claim production deployment, streaming infrastructure, automated retraining, or real-world disruption prediction.
-

@@ -1,10 +1,10 @@
-"""Executive Streamlit dashboard for the supply-chain control tower."""
+"""Executive Streamlit dashboard for the ML-driven supply-chain control tower."""
 
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Supply Chain Control Tower", page_icon="📦", layout="wide")
-st.title("📦 Intelligent Supply Chain Control Tower")
+st.set_page_config(page_title="ML-Driven Supply Chain Control Tower", page_icon="📦", layout="wide")
+st.title("📦 ML-Driven Supply Chain Control Tower")
 st.caption("SQL analytics • Financial performance • Forecasting • Inventory optimization • Supplier risk • Decision support")
 
 
@@ -189,4 +189,4 @@ with tabs[8]:
         st.dataframe(simulation.sort_values("estimated_net_benefit", ascending=False).head(10), use_container_width=True, hide_index=True)
 
 st.divider()
-st.caption("Decision-support dashboard powered by SQL analytics, forecasting, inventory policy, supplier-risk analytics and financial impact simulation.")
+st.caption("ML-Driven Supply Chain Control Tower — powered by SQL analytics, forecasting, inventory policy, supplier-risk analytics and financial impact simulation.")

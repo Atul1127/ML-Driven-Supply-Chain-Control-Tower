@@ -74,8 +74,8 @@ def main():
     rows = []
 
     for days_back in FOLDS:
-        test_end = max_date - pd.Timedelta(days=days_back)
-        test_start = test_end - pd.Timedelta(days=29)
+        test_end = max_date - pd.DateOffset(days=days_back)
+        test_start = test_end - pd.DateOffset(days=29)
         train = data[data.date < test_start]
         test = data[(data.date >= test_start) & (data.date <= test_end)]
         if train.empty or test.empty:

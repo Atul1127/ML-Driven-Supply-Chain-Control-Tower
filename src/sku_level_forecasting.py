@@ -74,7 +74,7 @@ def main():
         raise ValueError("No store/product series has enough history for lag features.")
 
     data = pd.concat(parts, ignore_index=True).dropna(subset=FEATURES)
-    cutoff = data.date.max() - pd.Timedelta(days=60)
+    cutoff = data.date.max() - pd.DateOffset(days=60)
     train, test = data[data.date <= cutoff], data[data.date > cutoff]
     if train.empty or test.empty:
         raise ValueError("Temporal split produced an empty train or test set.")
@@ -96,7 +96,7 @@ def main():
     test_out.to_csv("data/sku_test_predictions.csv", index=False)
 
     pairs = daily[["store", "product"]].drop_duplicates()
-    start_date = daily.date.max() + pd.Timedelta(days=1)
+    start_date = daily.date.max() + pd.DateOffset(days=1)
     scenario = load_scenario(start_date, pairs)
     scenario_lookup = scenario.set_index(["date", "store", "product"])[["promo_event", "discount_pct"]].to_dict("index")
 
@@ -108,7 +108,7 @@ def main():
         category = hist.category.iloc[-1]
         price = hist.unit_price.iloc[-1]
         for _ in range(30):
-            date = hist.date.max() + pd.Timedelta(days=1)
+            date = hist.date.max() + pd.DateOffset(days=1)
             demand_series = hist.demand
             planned = scenario_lookup.get((date, store, product), {"promo_event": 0, "discount_pct": 0.0})
             row = {

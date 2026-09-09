@@ -59,8 +59,8 @@ with tabs[0]:
     with c2:
         priority_filter = st.selectbox("Priority", ["All priorities", "URGENT", "HIGH", "MEDIUM", "LOW"])
     view = control.copy()
-    if store_filter != "All stores": view = view[view.store == store_filter]
-    if priority_filter != "All priorities": view = view[view.priority == priority_filter]
+    if store_filter != "All stores": view = view[view["store"] == store_filter]
+    if priority_filter != "All priorities": view = view[view["priority"] == priority_filter]
     preferred = ["priority", "action", "store", "product", "category", "supplier", "inventory_status", "days_of_stock", "shortage_to_rop", "recommended_order_qty", "average_30_day_forecast", "risk_level"]
     st.dataframe(view[[c for c in preferred if c in view.columns]], use_container_width=True, hide_index=True)
 
@@ -158,13 +158,13 @@ with tabs[6]:
         pairs = forecast[["store", "product"]].drop_duplicates().sort_values(["store", "product"])
         selected_pair = st.selectbox("Store × Product", [f"{r.store} | {r.product}" for r in pairs.itertuples()], key="forecast_pair")
         store, product = selected_pair.split(" | ", 1)
-        view = forecast[(forecast.store == store) & (forecast.product == product)].copy()
+        view = forecast[(forecast["store"] == store) & (forecast["product"] == product)].copy()
         view["date"] = pd.to_datetime(view["date"])
         st.line_chart(view.set_index("date")[["forecast_demand"]], height=360)
         cols = st.columns(3)
-        cols[0].metric("30-day forecast", f"{view.forecast_demand.sum():,.0f} units")
-        cols[1].metric("Average daily demand", f"{view.forecast_demand.mean():,.1f} units")
-        cols[2].metric("Promo days", f"{int(view.promo_event.sum())}")
+        cols[0].metric("30-day forecast", f"{view['forecast_demand'].sum():,.0f} units")
+        cols[1].metric("Average daily demand", f"{view['forecast_demand'].mean():,.1f} units")
+        cols[2].metric("Promo days", f"{int(view['promo_event'].sum())}")
         st.caption("Known future promotions/discounts can be supplied through data/forecast_scenario.csv; unspecified days default to no promotion.")
 
 with tabs[7]:

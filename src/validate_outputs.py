@@ -9,14 +9,14 @@ EXPECTED_PAIRS = 150
 REQUIRED = {
     "baseline_results.csv": ["model", "MAE", "RMSE", "MAPE", "sku_store_pairs"],
     "sku_xgboost_results.csv": ["model", "MAE", "RMSE", "MAPE", "sku_store_pairs"],
-    "sku_30_day_forecast.csv": ["date", "store", "product", "forecast_demand"],
+    "forecast_backtest_results.csv": ["fold", "model", "MAE", "RMSE", "MAPE"],
+    "sku_30_day_forecast.csv": ["date", "store", "product", "forecast_demand", "promo_event", "discount_pct"],
     "inventory_optimization_results.csv": ["store", "product", "inventory_status"],
     "supplier_risk_analysis.csv": ["supplier", "risk_score", "risk_level"],
-    "disruption_detection.csv": ["supplier", "cluster", "anomaly_status", "anomaly_score", "disruption_score", "disruption_level"],
-    "disruption_model_comparison.csv": ["model", "parameters", "silhouette", "davies_bouldin", "calinski_harabasz"],
-    "disruption_pca.csv": ["supplier", "cluster", "pc1", "pc2"],
+    "temporal_disruption.csv": ["date", "supplier", "product", "disruption_signal", "disruption_stage", "is_disruption"],
     "control_tower_inventory.csv": ["store", "product", "priority", "action"],
     "business_impact.csv": ["total_sku_store_pairs", "current_stockout_pairs", "historical_lost_sales_value"],
+    "replenishment_impact_simulation.csv": ["store", "product", "baseline_stockout_units", "recommended_policy_stockout_units", "stockout_reduction_units", "estimated_net_benefit"],
     "finance_summary.csv": ["revenue", "cogs", "gross_profit", "gross_margin_pct", "inventory_turnover", "days_inventory_outstanding", "annual_holding_cost"],
     "budget_vs_actual.csv": ["month", "actual_revenue", "budget_revenue", "revenue_variance", "revenue_variance_pct", "actual_cogs", "budget_cogs"],
     "promotion_effectiveness.csv": ["promo_event", "days", "units_sold", "revenue", "conversion_pct"],
@@ -47,33 +47,35 @@ def main():
         baseline = frames["baseline_results.csv"].set_index("model")
         xgb = frames["sku_xgboost_results.csv"].iloc[0]
         seasonal = baseline.loc["SKU Seasonal-Naive-7-Day"]
-        if not (
-            xgb["MAE"] < seasonal["MAE"]
-            and xgb["RMSE"] < seasonal["RMSE"]
-            and xgb["MAPE"] < seasonal["MAPE"]
-        ):
+        if not (xgb["MAE"] < seasonal["MAE"] and xgb["RMSE"] < seasonal["RMSE"] and xgb["MAPE"] < seasonal["MAPE"]):
             errors.append("XGBoost does not beat the seasonal-naive baseline on all three metrics")
+
+        backtest = frames["forecast_backtest_results.csv"]
+        if backtest["fold"].nunique() < 3:
+            errors.append("Walk-forward backtest must contain at least three evaluation folds")
+        pivot = backtest.pivot_table(index="fold", columns="model", values="MAE")
+        if "SKU-Store XGBoost" in pivot and "Seasonal-Naive-7-Day" in pivot:
+            if not (pivot["SKU-Store XGBoost"] < pivot["Seasonal-Naive-7-Day"]).all():
+                errors.append("XGBoost does not beat seasonal naive on MAE in every backtest fold")
 
         pairs = int(xgb["sku_store_pairs"])
         if pairs != EXPECTED_PAIRS:
             errors.append(f"Expected {EXPECTED_PAIRS} store/SKU pairs, found {pairs}")
-
         forecast_pairs = frames["sku_30_day_forecast.csv"][["store", "product"]].drop_duplicates().shape[0]
         if forecast_pairs != pairs:
             errors.append(f"Forecast covers {forecast_pairs} store/SKU pairs; model reports {pairs}")
+        forecast = frames["sku_30_day_forecast.csv"]
+        if not forecast["discount_pct"].between(0, 100).all() or not forecast["promo_event"].isin([0, 1]).all():
+            errors.append("Forecast scenario inputs must have discount 0-100 and promo event 0/1")
 
-        disruption = frames["disruption_detection.csv"]
-        if not disruption["disruption_score"].between(0, 100).all():
-            errors.append("Disruption score must be between 0 and 100")
-        if not disruption["anomaly_status"].isin(["NORMAL", "ANOMALY"]).all():
-            errors.append("Unexpected anomaly status")
+        temporal = frames["temporal_disruption.csv"]
+        if not temporal["disruption_signal"].between(0, 100).all():
+            errors.append("Temporal disruption signal must be between 0 and 100")
 
         finance = frames["finance_summary.csv"].iloc[0]
-        if finance["revenue"] <= 0:
-            errors.append("Finance revenue must be positive")
-        if finance["cogs"] < 0:
-            errors.append("Finance COGS cannot be negative")
-        if finance["gross_profit"] != finance["revenue"] - finance["cogs"]:
+        if finance["revenue"] <= 0 or finance["cogs"] < 0:
+            errors.append("Finance revenue must be positive and COGS cannot be negative")
+        if not np.isclose(finance["gross_profit"], finance["revenue"] - finance["cogs"]):
             errors.append("Gross profit does not reconcile to revenue minus COGS")
         if not 0 <= finance["gross_margin_pct"] <= 100:
             errors.append("Gross margin percentage must be between 0 and 100")
@@ -90,6 +92,10 @@ def main():
         if impact["historical_lost_sales_value"] < 0 or impact["current_inventory_value"] < 0:
             errors.append("Business impact financial values cannot be negative")
 
+        simulation = frames["replenishment_impact_simulation.csv"]
+        if (simulation["stockout_reduction_units"] < -1e-9).any():
+            errors.append("Recommended replenishment should not increase simulated stockout units")
+
     if errors:
         print("OUTPUT VALIDATION FAILED")
         for error in errors:
@@ -98,11 +104,13 @@ def main():
 
     print("OUTPUT VALIDATION PASSED")
     print("- Required output files and schemas are present")
-    print("- XGBoost beats the seasonal-naive baseline on MAE/RMSE/MAPE")
+    print("- XGBoost beats the seasonal-naive baseline on the original holdout")
+    print("- XGBoost beats seasonal naive across all walk-forward folds")
     print(f"- Forecast coverage matches the {EXPECTED_PAIRS} store/SKU pairs")
+    print("- Future promotion/discount inputs are bounded and explicit")
     print("- Finance KPIs reconcile and fall within valid ranges")
-    print("- Business impact and ABC outputs are valid")
-    print("- Disruption detection outputs and score ranges are valid")
+    print("- Replenishment impact simulation is valid")
+    print("- Temporal disruption signals are valid")
 
 
 if __name__ == "__main__":

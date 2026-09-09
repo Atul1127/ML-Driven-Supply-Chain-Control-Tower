@@ -28,9 +28,9 @@ Interactive Streamlit Control Tower
 
 The focus is deliberately on a coherent decision workflow rather than collecting many unrelated ML algorithms.
 
-## 📊 Current Results
+## 📊 Baseline Results
 
-Results from the reproducible pipeline run:
+These are the existing reproducible pipeline results from before the latest validation/backtesting upgrade. Rerun `python src/run_pipeline.py` to regenerate the metrics with the upgraded pipeline.
 
 | Metric | Result |
 |---|---:|
@@ -197,7 +197,9 @@ Validation checks required artifacts, forecast coverage, original benchmark perf
 .
 ├── app.py
 ├── data/
-│   └── retail_sales_data.csv
+│   ├── retail_sales_data.csv
+│   ├── forecast_scenario.csv
+│   └── forecast_scenario_template.csv
 ├── images/
 ├── sql/
 │   ├── 01_business_analysis.sql
@@ -266,8 +268,8 @@ PostgreSQL is required for the database-loading/SQL workflow; the dashboard read
 
 ## ⚠️ Evaluation & Limitations
 
-- Forecasting uses chronological evaluation and three walk-forward windows; the original single holdout is retained for continuity with the headline benchmark.
-- Future promotions/discounts are scenario inputs; unknown future events are not magically predicted.
+- Forecasting uses chronological evaluation and three walk-forward windows; the original single holdout is retained for continuity with the baseline benchmark.
+- Future promotions/discounts are scenario inputs; unknown future events are not predicted by the current system.
 - Supplier risk and temporal disruption are prioritization signals, not calibrated disruption probabilities.
 - The dataset is synthetic: 5 stores, 30 products, 8 suppliers and 2023–2024 dates.
 - Unit cost uses the documented **60%-of-list-price** assumption.

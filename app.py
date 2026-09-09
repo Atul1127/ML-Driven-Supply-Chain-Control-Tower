@@ -59,8 +59,10 @@ with tabs[0]:
     with c2:
         priority_filter = st.selectbox("Priority", ["All priorities", "URGENT", "HIGH", "MEDIUM", "LOW"])
     view = control.copy()
-    if store_filter != "All stores": view = view[view["store"] == store_filter]
-    if priority_filter != "All priorities": view = view[view["priority"] == priority_filter]
+    if store_filter != "All stores":
+        view = view[view["store"] == store_filter]
+    if priority_filter != "All priorities":
+        view = view[view["priority"] == priority_filter]
     preferred = ["priority", "action", "store", "product", "category", "supplier", "inventory_status", "days_of_stock", "shortage_to_rop", "recommended_order_qty", "average_30_day_forecast", "risk_level"]
     st.dataframe(view[[c for c in preferred if c in view.columns]], use_container_width=True, hide_index=True)
 

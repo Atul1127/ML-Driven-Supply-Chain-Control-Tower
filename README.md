@@ -2,7 +2,7 @@
 
 ![Supply Chain Control Tower](images/banner.png)
 
-> An end-to-end supply-chain analytics system that turns retail and supplier data into **forecasts, inventory decisions, risk signals, financial exposure, and prioritized actions**.
+> An end-to-end supply-chain analytics system that turns retail and supplier data into **demand forecasts, inventory policies, supplier-risk signals, financial exposure, and prioritized actions**.
 
 **Python · XGBoost · SHAP · PostgreSQL · Streamlit · Supply Chain Analytics**
 
@@ -13,65 +13,66 @@
 
 ## Overview
 
-Supply-chain teams do not need another isolated forecasting model. They need a system that connects **demand → inventory → suppliers → financial impact → action**.
+Supply-chain teams need more than an isolated forecasting model. They need a workflow that connects **demand → inventory → suppliers → financial impact → action**.
 
-This project builds that workflow end to end on a synthetic retail dataset. The result is a Streamlit control tower backed by a reproducible analytics and ML pipeline.
+This project implements that workflow on a synthetic retail dataset. A reproducible Python pipeline generates analytics and ML outputs, while a Streamlit dashboard turns those outputs into operational decision support.
 
 ### What the system answers
 
 - **What is happening?** — sales, inventory, supplier, and financial KPIs
 - **What is likely to happen?** — 30-day demand forecasts at store × product level
 - **What needs attention?** — stockout, low-coverage, replenishment, and supplier-risk signals
-- **What should we do?** — prioritized replenishment recommendations
-- **What could it cost?** — lost-sales exposure, holding cost, and planning-simulation impact
+- **What should we do?** — forecast-driven replenishment recommendations
+- **What could it cost?** — lost-sales exposure, holding cost, and scenario-based impact
 
 ---
 
-## System Architecture
+## Architecture
 
 ```text
-                    Retail + Supplier Data
-                              │
-              ┌───────────────┴───────────────┐
-              │                               │
-        SQL Business Analytics          Data Preparation
-              │                               │
-              └───────────────┬───────────────┘
-                              │
-                    Demand Forecasting
-                  XGBoost + Baselines
-                              │
-                   Chronological Validation
-                              │
-              ┌───────────────┼───────────────┐
-              │               │               │
-        Inventory Policy   Supplier Risk   Financials
-        SS / ROP / EOQ     Temporal Risk    KPIs + Exposure
-              │               │               │
-              └───────────────┼───────────────┘
-                              │
-                  Replenishment Simulation
-                              │
-                     Decision Support
-                              │
-                    Streamlit Control Tower
+                 Synthetic Retail + Supplier Data
+                               │
+              ┌────────────────┴────────────────┐
+              │                                 │
+        PostgreSQL / SQL                 Python Analytics
+              │                                 │
+              └────────────────┬────────────────┘
+                               │
+                     Demand Forecasting
+                  Baselines + XGBoost + SHAP
+                               │
+                    Chronological Validation
+                               │
+          ┌────────────────────┼────────────────────┐
+          │                    │                    │
+   Inventory Policy      Supplier Risk         Financials
+   Safety Stock / ROP    KPI + Temporal       Revenue / Margin
+   EOQ / Replenishment  Signals              / Exposure
+          │                    │                    │
+          └────────────────────┼────────────────────┘
+                               │
+                    30-Day Policy Simulation
+                               │
+                       Decision Support
+                               │
+                     Streamlit Control Tower
 ```
 
-The project intentionally focuses on a **single coherent decision workflow** rather than collecting unrelated ML techniques.
+The design deliberately keeps the project focused on one decision workflow rather than presenting unrelated ML algorithms.
 
 ---
 
-## Results Snapshot
+## Results
 
-Current pipeline results:
+Current pipeline results from the included synthetic dataset:
 
 | Metric | Result |
 |---|---:|
 | Daily records | **109,650** |
 | Store × product pairs | **150** |
-| Forecast MAE | **5.7937** |
-| Forecast RMSE | **8.2834** |
-| Forecast MAPE | **13.38%** |
+| XGBoost MAE | **5.7937** |
+| XGBoost RMSE | **8.2834** |
+| XGBoost MAPE | **13.38%** |
 | MAE improvement vs 7-day seasonal naive | **35.1%** |
 | RMSE improvement vs 7-day seasonal naive | **37.7%** |
 | MAPE improvement vs 7-day seasonal naive | **32.5%** |
@@ -79,21 +80,21 @@ Current pipeline results:
 | Critical inventory pairs | **59 / 150** |
 | Recommended replenishment | **117,293.68 units** |
 | Historical stockout rate | **15.76%** |
-| Historical lost-sales value | **60,149,442.80** |
+| Historical lost-sales exposure | **60,149,442.80** |
 | Suppliers analyzed | **8** |
-| Supplier risk | **4 LOW · 4 MEDIUM · 0 HIGH** |
+| Supplier risk classification | **4 LOW · 4 MEDIUM · 0 HIGH** |
 | Simulated stockout reduction | **73.1%** |
 | Simulated avoided lost-sales value | **7,024,229.03** |
 
-> **Important:** all data is synthetic. Financial results and replenishment impact are planning estimates based on explicit assumptions, not realized business results.
+> **Important:** the dataset is synthetic. Financial outputs and replenishment impact are deterministic planning estimates under explicit assumptions, not realized business results.
 
 ---
 
-## Forecasting
+## Demand Forecasting
 
-Demand is forecast at the **store × product** level using leakage-safe time-series features.
+Demand is modeled at the **store × product** level using lagged, rolling, calendar, promotion, and discount features. Historical features are shifted so the model does not directly use the current day's demand when constructing predictors.
 
-### Model benchmark
+### Benchmark
 
 | Model | MAE | RMSE | MAPE |
 |---|---:|---:|---:|
@@ -103,22 +104,22 @@ Demand is forecast at the **store × product** level using leakage-safe time-ser
 
 ### Method
 
-- 13 lag, rolling, calendar, promotion, and discount features
+- **13 features:** lags, rolling statistics, calendar variables, promotions, and discounts
 - Chronological train/test split
-- Naive and seasonal-naive baselines
-- Three chronological walk-forward validation windows
+- Naive and seasonal-naive benchmarks
+- Three sequential chronological 30-day walk-forward folds
 - Recursive 30-day forecast
-- SHAP-based feature importance
+- SHAP feature importance
 
-Known future promotions and discounts can be supplied through `data/forecast_scenario.csv`.
+Known future promotions and discounts can be supplied through `data/forecast_scenario.csv`. Unspecified future days default to no promotion and zero discount.
 
-> The headline improvement percentages above are calculated against the 7-day seasonal-naive model on the current chronological holdout. The walk-forward evaluation is a separate robustness check and is one-step-ahead in feature construction.
+> The headline improvement percentages are calculated on the current chronological holdout against the 7-day seasonal-naive benchmark. The three-fold walk-forward evaluation is a separate robustness check and evaluates one-step-ahead predictions.
 
 ---
 
-## Inventory Decisions
+## Inventory Policy
 
-The forecast feeds a practical replenishment layer:
+Forecasts feed a transparent replenishment policy:
 
 ```text
 Forecast Demand
@@ -131,55 +132,53 @@ Reorder Point
       ↓
 EOQ
       ↓
-Replenishment Recommendation
+Recommended Order Quantity
 ```
 
-The current run classifies the 150 store × product pairs as:
+Current classification across 150 store × product pairs:
 
 - **59 CRITICAL**
 - **48 REORDER**
 - **43 NORMAL**
 
-It also identifies **44 current stockout pairs** and **93 pairs with less than 7 days of coverage**.
+Additional signals:
 
-These are transparent inventory-policy calculations, not a globally constrained optimization solver.
+- **44** current stockout pairs
+- **93** pairs with less than 7 days of projected stock
+- **117,293.68** recommended replenishment units
+
+The implementation uses standard inventory-policy formulas and business rules. It is **not** a globally constrained optimization solver.
 
 ---
 
 ## Supplier Risk
 
-Supplier monitoring combines operational KPIs with temporal deterioration signals.
+Supplier performance is evaluated using operational KPIs:
 
-### Supplier performance
+- Average lead time
+- On-time delivery
+- Defect rate
+- Supplier delays
+- Fill rate
+- Ordered vs received quantity
 
-The system analyzes:
+A transparent weighted supplier-risk score maps suppliers into **LOW / MEDIUM / HIGH** categories.
 
-- lead time
-- on-time delivery
-- defect rate
-- delays
-- ordered vs received quantity
-- fill rate
-- rule-based supplier risk score
-
-Current supplier classification:
+Current classification:
 
 **4 LOW · 4 MEDIUM · 0 HIGH**
 
-### Temporal risk
+A separate temporal layer compares supplier × product behavior against a **14-day rolling baseline** and generates deterioration signals on a 0–100 scale.
 
-A separate supplier × product layer compares recent behavior against a **14-day rolling baseline** and produces deterioration signals on a 0–100 scale.
-
-The project intentionally treats these as **decision-support signals**, not calibrated disruption probabilities.
+These outputs are intended for **prioritization and monitoring**, not calibrated probabilities of future disruption.
 
 ---
 
-## Financial Impact & Simulation
+## Financial Analytics & Simulation
 
-The system connects operational decisions to commercial metrics:
+The financial layer connects operational data to:
 
-- Revenue
-- COGS
+- Revenue and COGS
 - Gross profit and margin
 - Budget vs actual
 - Inventory turnover
@@ -187,27 +186,29 @@ The system connects operational decisions to commercial metrics:
 - Holding cost
 - Historical lost-sales exposure
 - Promotion effectiveness
-- ABC analysis
-- Supplier-level financial exposure
+- ABC product analysis
+- Supplier-level stockout exposure
 
-A 30-day simulation compares recommended replenishment with a no-new-order baseline.
+### 30-day replenishment scenario
 
-| Simulation output | Value |
+The simulation compares the current recommended order policy against a **no-new-order baseline**.
+
+| Output | Value |
 |---|---:|
 | Baseline projected shortage | **121,756.03 units** |
-| Recommended-policy projected shortage | **32,775.05 units** |
+| Recommended-policy shortage | **32,775.05 units** |
 | Stockout reduction | **88,980.98 units (73.1%)** |
 | Avoided lost-sales value | **7,024,229.03** |
 | Incremental holding cost | **54,117,463.62** |
 | Estimated net benefit | **-47,093,234.59** |
 
-The negative estimated net benefit is deliberately reported. The simulation should be interpreted as a **planning scenario**, not proof of positive ROI.
+The negative net benefit is intentionally shown: reducing stockouts does **not** automatically mean the policy is economically attractive under the current assumptions.
 
-### Key assumptions
+### Planning assumptions
 
-- Unit cost = **60% of list price** because procurement cost is not present in the source dataset.
-- Budget values are modeled planning assumptions, not historical company budgets.
-- Future promotions/discounts are scenario inputs; unknown future events are not predicted by the current system.
+- Unit cost is modeled as **60% of list price** because procurement cost is not included in the source data.
+- Budget values are modeled planning assumptions rather than historical company budgets.
+- The simulation is deterministic and uses forecast demand; it is not causal evidence of realized savings or ROI.
 
 ---
 
@@ -215,39 +216,41 @@ The negative estimated net benefit is deliberately reported. The simulation shou
 
 ![Dashboard Interface](images/Interface.png)
 
-The Streamlit control tower brings the workflow together in one interface.
+The Streamlit application provides nine views:
 
 | View | Purpose |
 |---|---|
-| **Control Tower** | Prioritized inventory actions and filters |
+| **Control Tower** | Prioritized actions with store and priority filters |
 | **Financial Analytics** | Revenue, margin, DIO, holding cost, budget variance |
 | **Sales & Revenue** | Promotion effectiveness and ABC analysis |
-| **Inventory** | Stockouts, coverage, replenishment, policy simulation |
+| **Inventory** | Stockouts, coverage, replenishment, simulation |
 | **Supplier Risk** | Supplier performance and financial exposure |
 | **Risk Signals** | Temporal supplier × product deterioration |
-| **Forecast** | 30-day demand forecasts and scenario inputs |
-| **Model Benchmark** | Baselines, XGBoost, and validation metrics |
-| **Recommendations** | Prioritized actions and simulated impact |
+| **Forecast** | 30-day store × product forecasts and scenario inputs |
+| **Model Benchmark** | Baseline, XGBoost, and walk-forward metrics |
+| **Recommendations** | Action-oriented replenishment priorities |
+
+The dashboard consumes generated CSV outputs; it does not require a live database connection at runtime.
 
 ---
 
 ## SQL Analytics
 
-PostgreSQL is used for business-oriented analytics across sales, inventory, stores, products, and suppliers.
+The PostgreSQL layer provides business-oriented analysis across sales, inventory, products, stores, and suppliers.
 
-The SQL layer demonstrates:
+It demonstrates:
 
-- multi-table joins
-- aggregations and `GROUP BY`
+- Multi-table joins
+- Aggregations and `GROUP BY`
 - `CASE WHEN` business logic
 - CTEs
-- window functions
+- Window functions
 - `LAG`
-- ranking and partitioning
-- period-over-period analysis
-- revenue, demand, stockout, and supplier KPIs
+- Ranking and `PARTITION BY`
+- Period-over-period analysis
+- Revenue, demand, stockout, and supplier KPIs
 
-Files:
+SQL files:
 
 ```text
 sql/01_business_analysis.sql
@@ -258,15 +261,13 @@ sql/02_finance_analysis.sql
 
 ## Reproducible Pipeline
 
-Run everything with one command:
+The full workflow can be executed with:
 
 ```bash
 python src/run_pipeline.py
 ```
 
-The pipeline executes the forecasting, inventory, supplier-risk, financial, simulation, explainability, and validation stages sequentially and stops if a stage fails.
-
-Core stages:
+The runner executes each stage sequentially and stops if a stage fails.
 
 ```text
 baseline_forecasting.py
@@ -294,7 +295,7 @@ shap_explainability.py
 validate_outputs.py
 ```
 
-The validation stage checks required outputs, benchmark metrics, backtest folds, forecast coverage, scenario bounds, finance reconciliation, risk ranges, and simulation results.
+`validate_outputs.py` checks generated artifacts and key output constraints before the pipeline is considered complete.
 
 ---
 
@@ -336,7 +337,7 @@ The validation stage checks required outputs, benchmark metrics, backtest folds,
 └── README.md
 ```
 
-Generated pipeline outputs are ignored by Git to keep the repository focused on source code and reproducible inputs.
+Generated pipeline outputs are ignored by Git, keeping the repository focused on source code and reproducible inputs.
 
 ---
 
@@ -379,26 +380,45 @@ python src/run_pipeline.py
 streamlit run app.py
 ```
 
-### Optional: PostgreSQL
+### Optional: PostgreSQL workflow
 
 ```bash
 python src/load_to_postgres.py
 ```
 
-The PostgreSQL loader validates the dataset and populates the core tables used by the SQL workflow.
+PostgreSQL is used for the SQL analytics workflow. The Streamlit dashboard reads the generated CSV outputs directly.
 
 ---
 
-## Limitations & Scope
+## Dataset
 
-This project is deliberately transparent about what it does and does not claim.
+The included dataset is synthetic and generated to contain realistic supply-chain patterns for experimentation:
 
-- The dataset is synthetic: **5 stores, 30 products, 8 suppliers, 2023–2024 dates**.
-- Forecast evaluation is chronological; walk-forward validation is one-step-ahead in feature construction rather than a fully recursive multi-day backtest.
-- Supplier risk is a transparent prioritization framework, not a calibrated probability model.
-- Inventory logic uses practical policy formulas rather than globally constrained optimization.
-- Replenishment impact is a deterministic simulation under explicit assumptions.
-- The project does not claim production deployment, streaming infrastructure, automated retraining, or real-world disruption prediction.
+- **5** retail stores
+- **30** products across **6** categories
+- **8** suppliers
+- **2 years** of daily observations
+- Demand seasonality and weekly effects
+- Promotions and discounts
+- Inventory and stockout events
+- Supplier lead time, reliability, defects, and delays
+
+The generator uses a fixed random seed for reproducibility.
+
+---
+
+## Limitations
+
+This project is intentionally scoped as a portfolio/research prototype rather than a production supply-chain platform.
+
+- Synthetic data is not representative of a real retailer.
+- Forecast performance is specific to this dataset and evaluation setup.
+- Walk-forward validation is one-step-ahead rather than a fully recursive multi-day backtest.
+- Supplier risk is a transparent scoring framework, not a calibrated probability model.
+- Inventory logic is policy-based rather than globally constrained optimization.
+- Future promotions and discounts are supplied as scenario inputs rather than forecast by a separate promotion model.
+- The replenishment simulation is deterministic and assumption-driven.
+- There is no streaming ingestion, automated retraining, production orchestration, or live ERP integration.
 
 ---
 
@@ -408,6 +428,6 @@ This project is deliberately transparent about what it does and does not claim.
 
 ---
 
-## Why This Project
+## Project Focus
 
-This project is designed to demonstrate the combination of **data analytics, machine learning, SQL, optimization-style decision logic, and business communication** required to turn raw operational data into an actionable supply-chain decision system.
+The goal is to demonstrate how **SQL analytics, machine learning, inventory policy, supplier monitoring, financial modeling, and dashboarding** can be combined into one actionable decision-support workflow.

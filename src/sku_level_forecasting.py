@@ -7,6 +7,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from xgboost import XGBRegressor
 
 DATA_PATH = "data/retail_sales_data.csv"
+SCENARIO_PATH = "data/forecast_scenario.csv"
 RESULTS_PATH = "data/sku_xgboost_results.csv"
 FORECAST_PATH = "data/sku_30_day_forecast.csv"
 OUTPUT_DIR = "images/forecasting"
@@ -34,6 +35,21 @@ def build_features(group):
     x["day_of_month"] = x.date.dt.day
     x["is_weekend"] = (x.day_of_week >= 5).astype(int)
     return x
+
+
+def load_scenario(start_date, pairs):
+    """Load optional known future promotions/discounts; unspecified days stay at zero."""
+    if not os.path.exists(SCENARIO_PATH):
+        return pd.DataFrame(columns=["date", "store", "product", "promo_event", "discount_pct"])
+    scenario = pd.read_csv(SCENARIO_PATH, comment="#", parse_dates=["date"])
+    required = {"date", "store", "product", "promo_event", "discount_pct"}
+    if not required.issubset(scenario.columns):
+        raise ValueError(f"{SCENARIO_PATH} must contain {sorted(required)}")
+    scenario = scenario[scenario.date >= start_date].copy()
+    scenario = scenario.merge(pairs, on=["store", "product"], how="inner")
+    scenario["promo_event"] = scenario["promo_event"].clip(0, 1).astype(int)
+    scenario["discount_pct"] = scenario["discount_pct"].clip(0, 100)
+    return scenario[["date", "store", "product", "promo_event", "discount_pct"]]
 
 
 def main():
@@ -79,6 +95,11 @@ def main():
     test_out["predicted_demand"] = pred
     test_out.to_csv("data/sku_test_predictions.csv", index=False)
 
+    pairs = daily[["store", "product"]].drop_duplicates()
+    start_date = daily.date.max() + pd.Timedelta(days=1)
+    scenario = load_scenario(start_date, pairs)
+    scenario_lookup = scenario.set_index(["date", "store", "product"])[["promo_event", "discount_pct"]].to_dict("index")
+
     forecasts = []
     for (store, product), group in daily.groupby(["store", "product"], sort=False):
         hist = group.sort_values("date").copy()
@@ -89,9 +110,10 @@ def main():
         for _ in range(30):
             date = hist.date.max() + pd.Timedelta(days=1)
             demand_series = hist.demand
+            planned = scenario_lookup.get((date, store, product), {"promo_event": 0, "discount_pct": 0.0})
             row = {
                 "date": date, "store": store, "product": product, "category": category,
-                "demand": np.nan, "promo_event": 0, "discount_pct": 0.0,
+                "demand": np.nan, "promo_event": planned["promo_event"], "discount_pct": planned["discount_pct"],
                 "lag_1": demand_series.iloc[-1], "lag_7": demand_series.iloc[-7],
                 "lag_14": demand_series.iloc[-14], "lag_30": demand_series.iloc[-30],
                 "rolling_mean_7": demand_series.tail(7).mean(), "rolling_mean_30": demand_series.tail(30).mean(),
@@ -99,8 +121,12 @@ def main():
                 "month": date.month, "day_of_month": date.day, "is_weekend": int(date.dayofweek >= 5)
             }
             prediction = float(max(model.predict(pd.DataFrame([row])[FEATURES])[0], 0))
-            forecasts.append({"date": date, "store": store, "product": product, "category": category, "forecast_demand": round(prediction, 2), "unit_price": price})
-            hist = pd.concat([hist, pd.DataFrame([{"date": date, "store": store, "product": product, "category": category, "demand": prediction, "promo_event": 0, "discount_pct": 0.0, "unit_price": price}])], ignore_index=True)
+            forecasts.append({"date": date, "store": store, "product": product, "category": category,
+                              "forecast_demand": round(prediction, 2), "unit_price": price,
+                              "promo_event": int(planned["promo_event"]), "discount_pct": float(planned["discount_pct"])})
+            hist = pd.concat([hist, pd.DataFrame([{"date": date, "store": store, "product": product, "category": category,
+                                                   "demand": prediction, "promo_event": planned["promo_event"],
+                                                   "discount_pct": planned["discount_pct"], "unit_price": price}])], ignore_index=True)
 
     forecast_df = pd.DataFrame(forecasts)
     if forecast_df.empty:

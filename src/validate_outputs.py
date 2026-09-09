@@ -1,6 +1,7 @@
 """Post-run validation for generated control-tower artifacts."""
 
 from pathlib import Path
+import numpy as np
 import pandas as pd
 
 DATA = Path("data")
@@ -61,10 +62,10 @@ def main():
         pairs = int(xgb["sku_store_pairs"])
         if pairs != EXPECTED_PAIRS:
             errors.append(f"Expected {EXPECTED_PAIRS} store/SKU pairs, found {pairs}")
-        forecast_pairs = frames["sku_30_day_forecast.csv"][["store", "product"]].drop_duplicates().shape[0]
+        forecast = frames["sku_30_day_forecast.csv"]
+        forecast_pairs = forecast[["store", "product"]].drop_duplicates().shape[0]
         if forecast_pairs != pairs:
             errors.append(f"Forecast covers {forecast_pairs} store/SKU pairs; model reports {pairs}")
-        forecast = frames["sku_30_day_forecast.csv"]
         if not forecast["discount_pct"].between(0, 100).all() or not forecast["promo_event"].isin([0, 1]).all():
             errors.append("Forecast scenario inputs must have discount 0-100 and promo event 0/1")
 

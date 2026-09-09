@@ -30,7 +30,7 @@ def simulate():
 
     rows = []
     for r in params.itertuples(index=False):
-        series = forecast[(forecast.store == r.store) & (forecast.product == r.product)].sort_values("date")
+        series = forecast[(forecast["store"] == r.store) & (forecast["product"] == r.product)].sort_values("date")
         if series.empty:
             continue
         demand = series.forecast_demand.to_numpy(dtype=float)

@@ -1,4 +1,4 @@
-# AI-Driven Supply Chain Control Tower
+# ML-Driven Supply Chain Control Tower
 
 ![Supply Chain Control Tower](images/banner.png)
 
@@ -243,8 +243,8 @@ Generated pipeline CSV outputs are ignored by Git except for the source retail d
 ### 1. Clone
 
 ```bash
-git clone https://github.com/Atul1127/AI-Driven-Supply-Chain-Control-Tower.git
-cd AI-Driven-Supply-Chain-Control-Tower
+git clone https://github.com/Atul1127/ML-Driven-Supply-Chain-Control-Tower.git
+cd ML-Driven-Supply-Chain-Control-Tower
 ```
 
 ### 2. Create a virtual environment

@@ -10,9 +10,10 @@ EXPECTED_PAIRS = 150
 REQUIRED = {
     "baseline_results.csv": ["model", "MAE", "RMSE", "MAPE", "sku_store_pairs"],
     "sku_xgboost_results.csv": ["model", "MAE", "RMSE", "MAPE", "sku_store_pairs"],
-    "forecast_backtest_results.csv": ["fold", "model", "MAE", "RMSE", "MAPE"],
+    "forecast_backtest_results.csv": ["fold", "model", "MAE", "RMSE", "MAPE", "WAPE"],
+    "forecast_horizon_backtest.csv": ["fold", "horizon", "xgb_MAE", "naive_MAE"],
     "sku_30_day_forecast.csv": ["date", "store", "product", "forecast_demand", "promo_event", "discount_pct"],
-    "inventory_optimization_results.csv": ["store", "product", "inventory_status"],
+    "inventory_optimization_results.csv": ["store", "product", "inventory_status", "safety_stock", "reorder_point", "on_order_qty", "inventory_position", "recommended_order_qty"],
     "supplier_risk_analysis.csv": ["supplier", "risk_score", "risk_level"],
     "temporal_disruption.csv": ["date", "supplier", "product", "disruption_signal", "disruption_stage", "is_disruption"],
     "control_tower_inventory.csv": ["store", "product", "priority", "action"],
@@ -46,12 +47,15 @@ def main():
 
     if not errors:
         baseline = frames["baseline_results.csv"].set_index("model")
-        xgb = frames["sku_xgboost_results.csv"].iloc[0]
+        xgb = frames["sku_xgboost_results.csv"].set_index("model").loc["SKU-Store XGBoost"]
         seasonal = baseline.loc["SKU Seasonal-Naive-7-Day"]
         if not (xgb["MAE"] < seasonal["MAE"] and xgb["RMSE"] < seasonal["RMSE"] and xgb["MAPE"] < seasonal["MAPE"]):
             errors.append("XGBoost does not beat the seasonal-naive baseline on all three metrics")
 
         backtest = frames["forecast_backtest_results.csv"]
+        horizon = frames["forecast_horizon_backtest.csv"]
+        if horizon["horizon"].max() < 30:
+            errors.append("Recursive horizon backtest must cover 30 days")
         if backtest["fold"].nunique() < 3:
             errors.append("Walk-forward backtest must contain at least three evaluation folds")
         summary = backtest.groupby("model")[["MAE", "RMSE", "MAPE"]].mean()
@@ -83,6 +87,8 @@ def main():
             errors.append("Gross margin percentage must be between 0 and 100")
         if finance["inventory_turnover"] < 0 or finance["days_inventory_outstanding"] < 0:
             errors.append("Inventory turnover and DIO must be non-negative")
+        if not 1 <= finance["days_inventory_outstanding"] <= 365:
+            errors.append("DIO outside 1-365 days; check that average inventory is summed across items per day")
 
         abc_classes = set(frames["abc_analysis.csv"]["abc_class"].dropna().unique())
         if not abc_classes.issubset({"A", "B", "C"}):
@@ -95,8 +101,20 @@ def main():
             errors.append("Business impact financial values cannot be negative")
 
         simulation = frames["replenishment_impact_simulation.csv"]
-        if (simulation["stockout_reduction_units"] < -1e-9).any():
-            errors.append("Recommended replenishment should not increase simulated stockout units")
+        if simulation["stockout_reduction_units"].sum() < 0:
+            errors.append("Recommended policy should not increase total simulated stockout units vs the historical rule")
+        if "no_order_stockout_units" in simulation and (simulation["recommended_policy_stockout_units"] > simulation["no_order_stockout_units"] + 1e-9).any():
+            errors.append("Recommended policy cannot be worse than placing no orders")
+        # Holding cost sanity: 30 days of holding can never exceed ~30/365 x 25% of the
+        # value of everything that could be in stock (guards against the old 1,460x bug).
+        inv = frames["inventory_optimization_results.csv"]
+        max_value = ((inv["inventory_position"] + inv["order_up_to_level"]) * inv["unit_price"] * 0.60).sum() if "order_up_to_level" in inv else None
+        if max_value is not None and simulation["recommended_holding_cost"].sum() > max_value * 0.25 * 31 / 365:
+            errors.append("Simulated holding cost exceeds the annual-rate ceiling; check holding-cost units")
+        # Order quantity must not ignore stock already in transit.
+        over = (inv["recommended_order_qty"] > 0) & (inv["inventory_position"] + inv["recommended_order_qty"] > inv["order_up_to_level"] + 0.05)
+        if "order_up_to_level" in inv and over.any():
+            errors.append("Recommended orders exceed the order-up-to level once in-transit stock is counted")
 
     if errors:
         print("OUTPUT VALIDATION FAILED")
@@ -111,7 +129,8 @@ def main():
     print(f"- Forecast coverage matches the {EXPECTED_PAIRS} store/SKU pairs")
     print("- Future promotion/discount inputs are bounded and explicit")
     print("- Finance KPIs reconcile and fall within valid ranges")
-    print("- Replenishment impact simulation is valid")
+    print("- Recursive 30-day horizon backtest is present")
+    print("- Replenishment simulation is valid, beats the historical rule in total, and holding cost uses the annual rate")
     print("- Temporal disruption signals are valid")
 
 

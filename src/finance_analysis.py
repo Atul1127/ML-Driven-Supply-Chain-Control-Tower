@@ -13,8 +13,9 @@ import pandas as pd
 DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "retail_sales_data.csv")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 
-UNIT_COST_RATE = 0.60
-ANNUAL_HOLDING_RATE = 0.25
+import sys
+sys.path.insert(0, os.path.dirname(__file__))
+from common import ANNUAL_HOLDING_RATE, UNIT_COST_RATE  # noqa: E402
 
 
 def load_data():
@@ -27,6 +28,8 @@ def load_data():
     df["gross_margin_pct"] = np.where(df["revenue"] > 0, 100 * df["gross_profit"] / df["revenue"], 0)
     df["inventory_value"] = df["closing_stock"] * df["unit_cost"]
     df["lost_sales_value"] = df["lost_sales"] * df["sell_price"]
+    # Lost revenue overstates the damage; the profit actually lost is the margin.
+    df["lost_gross_profit"] = df["lost_sales"] * (df["sell_price"] - df["unit_cost"]).clip(lower=0)
     return df
 
 
@@ -34,8 +37,12 @@ def finance_summary(df):
     revenue = df["revenue"].sum()
     cogs = df["cogs"].sum()
     gross_profit = revenue - cogs
-    avg_inventory = df["inventory_value"].mean()
-    turnover = cogs / avg_inventory if avg_inventory else 0
+    # Average TOTAL inventory value held on a day (sum across all store/products
+    # per date, then average over dates). Averaging per row understated it ~150x.
+    avg_inventory = df.groupby("date")["inventory_value"].sum().mean()
+    days = max((df["date"].max() - df["date"].min()).days + 1, 1)
+    annual_cogs = cogs * 365.0 / days
+    turnover = annual_cogs / avg_inventory if avg_inventory else 0
     dio = 365 / turnover if turnover else 0
     holding_cost = avg_inventory * ANNUAL_HOLDING_RATE
     return pd.DataFrame([{
@@ -43,11 +50,13 @@ def finance_summary(df):
         "cogs": cogs,
         "gross_profit": gross_profit,
         "gross_margin_pct": 100 * gross_profit / revenue if revenue else 0,
+        "annual_cogs": annual_cogs,
         "average_inventory_value": avg_inventory,
         "inventory_turnover": turnover,
         "days_inventory_outstanding": dio,
         "annual_holding_cost": holding_cost,
         "historical_lost_sales_value": df["lost_sales_value"].sum(),
+        "historical_lost_gross_profit": df["lost_gross_profit"].sum(),
     }])
 
 
@@ -57,7 +66,10 @@ def monthly_budget_vs_actual(df):
         actual_cogs=("cogs", "sum"),
         actual_gross_profit=("gross_profit", "sum"),
     )
-    # Simple planning assumptions: budget is 5% above prior month for revenue and 3% for COGS.
+    # NOTE: there is no real budget in the data. The "budget" here is a growth
+    # target (prior month actual +5% revenue / +3% COGS), so the variance measures
+    # month-on-month growth vs that target, not performance against a plan set
+    # in advance. The dashboard labels it accordingly.
     monthly["budget_revenue"] = monthly["actual_revenue"].shift(1) * 1.05
     monthly["budget_cogs"] = monthly["actual_cogs"].shift(1) * 1.03
     monthly.loc[0, "budget_revenue"] = monthly.loc[0, "actual_revenue"]

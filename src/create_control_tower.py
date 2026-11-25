@@ -26,11 +26,23 @@ def main():
     control["priority"] = "LOW"
     control.loc[control["inventory_status"] == "REORDER", "priority"] = "MEDIUM"
     control.loc[control["inventory_status"] == "CRITICAL", "priority"] = "HIGH"
-    control.loc[(control["inventory_status"] == "CRITICAL") & (control["risk_level"].astype(str) == "HIGH"), "priority"] = "URGENT"
+    # URGENT: critical AND either a HIGH-risk supplier, or already out of stock
+    # with nothing in transit to cover it.
+    nothing_in_transit = control.get("on_order_qty", 0) <= 0
+    urgent = (control["inventory_status"] == "CRITICAL") & (
+        (control["risk_level"].astype(str) == "HIGH")
+        | ((control["current_stock"] <= 0) & nothing_in_transit)
+    )
+    control.loc[urgent, "priority"] = "URGENT"
 
+    has_transit = control.get("on_order_qty", 0) > 0
+    new_order = control["recommended_order_qty"] > 0
     control["action"] = "Monitor"
     control.loc[control["priority"] == "MEDIUM", "action"] = "Plan replenishment"
-    control.loc[control["priority"] == "HIGH", "action"] = "Expedite replenishment"
+    control.loc[(control["priority"] == "MEDIUM") & has_transit & ~new_order, "action"] = "Order in transit - monitor arrival"
+    control.loc[control["priority"] == "HIGH", "action"] = "Place expedited order"
+    control.loc[(control["priority"] == "HIGH") & has_transit, "action"] = "Expedite in-transit order"
+    control.loc[(control["priority"] == "HIGH") & has_transit & new_order, "action"] = "Expedite in-transit + place order"
     control.loc[control["priority"] == "URGENT", "action"] = "Expedite + supplier escalation"
 
     control["priority_rank"] = control["priority"].map(PRIORITY_ORDER).fillna(9)

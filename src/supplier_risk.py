@@ -13,9 +13,15 @@ Metrics:
 - Received quantity
 - Fill rate
 - Supplier risk score
+
+On-time rate and lead time are measured from REALIZED purchase orders (each
+order matched to its delivery), not read from the generator's per-supplier
+setting columns, so the score reflects what actually happened.
 """
 
 import pandas as pd
+
+from common import order_history
 
 
 # =============================================================================
@@ -97,15 +103,34 @@ def calculate_supplier_metrics(df):
     )
 
     # -------------------------------------------------------------------------
+    # Realized delivery performance from matched purchase orders
+    # -------------------------------------------------------------------------
+
+    orders = order_history(df)
+    closed = orders[~orders["open"]]
+    realized = closed.groupby("supplier").agg(
+        realized_on_time_rate=("on_time", "mean"),
+        realized_lead_time=("realized_lead_time", "mean"),
+        lead_time_std=("realized_lead_time", "std"),
+        delivered_orders=("on_time", "count"),
+        order_fill_rate=("fill_rate", "mean"),
+    ).reset_index()
+    supplier_metrics = supplier_metrics.merge(realized, on="supplier", how="left")
+    supplier_metrics["configured_on_time_rate"] = supplier_metrics["on_time_rate"]
+    supplier_metrics["on_time_rate"] = supplier_metrics["realized_on_time_rate"].fillna(supplier_metrics["on_time_rate"])
+    supplier_metrics["realized_lead_time"] = supplier_metrics["realized_lead_time"].round(2)
+    supplier_metrics["lead_time_std"] = supplier_metrics["lead_time_std"].round(2)
+
+    # -------------------------------------------------------------------------
     # Fill Rate
     # -------------------------------------------------------------------------
 
-    supplier_metrics["fill_rate"] = (
+    # Fill rate per DELIVERED order (received / ordered on the matched order).
+    # Total received / total ordered would count orders still in transit as
+    # unfilled.
+    supplier_metrics["fill_rate"] = supplier_metrics["order_fill_rate"].fillna(
         supplier_metrics["total_received"]
-        / supplier_metrics["total_ordered"].replace(
-            0,
-            1,
-        )
+        / supplier_metrics["total_ordered"].replace(0, 1)
     )
 
     # -------------------------------------------------------------------------
@@ -224,6 +249,8 @@ def display_results(results):
         "on_time_percentage",
         "defect_percentage",
         "fill_percentage",
+        "realized_lead_time",
+        "lead_time_std",
         "total_supplier_delays",
         "risk_score",
         "risk_level",
